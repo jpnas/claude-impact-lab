@@ -12,18 +12,19 @@ O repositório de dados está em `../claude_impact_lab_compstat_rio/` — não e
 
 Toda a documentação de decisões fica em `brainstorming/`. Leia antes de implementar qualquer coisa.
 
-**`brainstorming/caixinhas-de-dados.md`** — decisão central do projeto: como os dados heterogêneos são normalizados em 4 estruturas por área antes de alimentar o dashboard.
+**`brainstorming/caixinhas-de-dados.md`** — decisão central do projeto: como os dados heterogêneos são normalizados em 5 estruturas por área antes de alimentar o dashboard.
 
 ## Arquitetura Planejada
 
 ### Pipeline (roda antes da reunião de terça)
 
-`pipeline.py` processa todas as 8 áreas da FM e salva JSONs em `cache/`. Cada área gera 4 arquivos:
+`pipeline.py` processa todas as 8 áreas da FM e salva JSONs em `cache/`. Cada área gera 5 arquivos:
 
 - `cache/{area}/ocorrencias.json` — contagens, distribuição temporal, heatmap points
-- `cache/{area}/dinamica_criminal.json` — síntese LLM de RELINTs + Disque Denúncia + ORCRIM
-- `cache/{area}/fatores_urbanos.json` — fatores por tipo e órgão responsável + PSR
+- `cache/{area}/dinamica_criminal.json` — síntese LLM de RELINTs + Disque Denúncia
+- `cache/{area}/fatores_urbanos.json` — fatores por tipo e órgão responsável
 - `cache/{area}/cobertura_operacional.json` — câmeras, polígono FM, pontos cegos
+- `cache/{area}/contexto_territorial.json` — domínio ORCRIM (CV/TCP/Milícia/ADA) + PSR por densidade
 
 ### Dashboard (Streamlit)
 

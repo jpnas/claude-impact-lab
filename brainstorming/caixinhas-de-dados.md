@@ -6,11 +6,11 @@ O problema central do CompStat é que os dados relevantes para a reunião semana
 
 A solução passa por um pipeline de pré-processamento que lê todas essas fontes e as normaliza em estruturas unificadas por área da FM. Chamamos essas estruturas de **caixinhas**.
 
-Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao final do processamento, cada uma das 8 áreas da FM tem 4 caixinhas populadas — e o dashboard lê dessas caixinhas para exibir os dados e gerar o relatório.
+Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao final do processamento, cada uma das 8 áreas da FM tem 5 caixinhas populadas — e o dashboard lê dessas caixinhas para exibir os dados e gerar o relatório.
 
 ---
 
-## As 4 Caixinhas
+## As 5 Caixinhas
 
 ### 1. Ocorrências
 
@@ -65,17 +65,16 @@ Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao 
 - Resposta à pergunta norteadora 3: modelo de emprego da FM (moto, viatura, a pé)
 - Campo "Área sob influência de grupo criminoso" na identificação
 
-**Natureza:** híbrida — predominantemente qualitativa (LLM) com um campo estruturado (ORCRIM via spatial join)
+**Natureza:** predominantemente qualitativa (LLM)
 
 **Fontes:**
 
 | Fonte | Tipo | Como alimenta | Processamento |
 |---|---|---|---|
-| `relints/*.docx` | Não-estruturada | Principal — texto rico com modus operandi, rotas, ORCRIM, PSR | LLM sintetiza em JSON estruturado |
+| `relints/*.docx` | Não-estruturada | Principal — texto rico com modus operandi, rotas, ORCRIM | LLM sintetiza em JSON estruturado |
 | `disk_denuncia.csv` (relato_redacted) | Não-estruturada | Complementar — relatos de cidadãos confirmando padrões | LLM extrai padrões recorrentes por área |
-| `dominio_territorial.csv` | Estruturada | ORCRIM — polígonos de controle por facção (CV, TCP, Milícia, ADA) | Spatial join com polígono FM |
 
-**Nota sobre o Disque Denúncia:** o CSV tem 83.549 linhas mas apenas 18.003 denúncias reais — o arquivo veio desnormalizado de um JSON, com linhas extras para órgãos, assuntos e envolvidos. O processamento deve deduplicar por `id_denuncia`.
+**Nota sobre o Disque Denúncia:** o CSV tem 83.549 linhas mas apenas 18.003 denúncias reais — o arquivo veiu desnormalizado de um JSON, com linhas extras para órgãos, assuntos e envolvidos. O processamento deve deduplicar por `id_denuncia`.
 
 **Output esperado (JSON por área):**
 ```json
@@ -85,8 +84,6 @@ Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao 
   "rotas_de_fuga": ["Av. Marechal Floriano sentido Rodoviária", "Vias transversais da Av. Presidente Vargas"],
   "pontos_de_receptacao": ["Camelódromo da Uruguaiana"],
   "perfil_suspeitos": "Indivíduos jovens, atuando em duplas ou grupos, a pé e em motocicletas",
-  "orcrim": "TCP",
-  "comunidades_proximas": ["Mangueira", "Providência"],
   "narrativa_completa": "A área analisada apresenta..."
 }
 ```
@@ -109,10 +106,7 @@ Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao 
 | Fonte | Tipo | Como alimenta | Processamento |
 |---|---|---|---|
 | `fatores_urbanos.csv` | Estruturada | Principal — 2.085 pontos com tipo, coordenada e órgão responsável | Filtro por `subarea_nome` (já mapeado para área FM) |
-| `CPSR_2020_2022_2024.xlsx` | Estruturada | PSR — 23.332 registros todos com lat/long (2020, 2022, 2024) | Spatial join com polígono FM; agrega por densidade |
 | `relints/*.docx` | Não-estruturada | Complementar — menciona fatores não cobertos pelo levantamento de campo | LLM extrai fatores adicionais citados |
-
-**Nota sobre PSR:** apesar de ser um dado demográfico, o PSR entra nesta caixinha porque aparece como **fator de incidência criminal** no relatório — com responsável definido (SMAS) e na mesma seção que iluminação e vegetação.
 
 **Output esperado (JSON por área):**
 ```json
@@ -129,18 +123,11 @@ Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao 
       "orgao_responsavel": "Comlurb",
       "contagem": 4,
       "pontos": [[lat, lon], ...]
-    },
-    {
-      "tipo": "Pessoas em situação de rua",
-      "orgao_responsavel": "SMAS",
-      "contagem": 12,
-      "pontos": [[lat, lon], ...]
     }
   ],
   "por_orgao": {
     "RioLuz": 7,
     "Comlurb": 6,
-    "SMAS": 12,
     "SEOP": 3
   }
 }
@@ -183,6 +170,46 @@ Cada caixinha representa uma dimensão de análise que o relatório precisa. Ao 
 
 ---
 
+### 5. Contexto Territorial
+
+**O que guarda:** domínio territorial de organizações criminosas (ORCRIM) sobre a área e densidade de Pessoas em Situação de Rua (PSR).
+
+**Para que serve no relatório:**
+- Campo "Área sob influência de grupo criminoso" na identificação da área
+- Seção "Contexto Territorial" — background estrutural que enquadra a dinâmica criminal
+- Insumo para o LLM ao gerar a narrativa de Dinâmica Criminal (Caixinha 2): saber qual facção domina o território ajuda a contextualizar o modus operandi
+
+**Natureza:** quantitativa — processamento puramente determinístico, sem LLM
+
+**Fontes:**
+
+| Fonte | Tipo | Como alimenta | Processamento |
+|---|---|---|---|
+| `dominio_territorial.csv` | Geoespacial | 1.628 polígonos de controle por facção (CV, TCP, Milícia, ADA) | Spatial join com polígono FM; identifica ORCRIM dominante |
+| `CPSR_2020_2022_2024.xlsx` | Estruturada | 23.332 registros de PSR com lat/long (censos 2020, 2022, 2024) | Spatial join com polígono FM; agrega por densidade e evolução temporal |
+
+**Output esperado (JSON por área):**
+```json
+{
+  "orcrim_dominante": "TCP",
+  "orcrim_por_tipo": {
+    "TCP": 0.62,
+    "CV": 0.21,
+    "Milícia": 0.17
+  },
+  "comunidades_proximas": ["Mangueira", "Providência"],
+  "psr": {
+    "total_2024": 47,
+    "total_2022": 38,
+    "total_2020": 29,
+    "tendencia": "crescente",
+    "pontos": [[lat, lon], ...]
+  }
+}
+```
+
+---
+
 ## Fluxo do Pipeline
 
 ```
@@ -191,14 +218,19 @@ FONTES BRUTAS
 pipeline.py  (roda uma vez, antes da reunião de terça)
     ↓
 Para cada uma das 8 áreas FM:
-    ├── Spatial join → Caixinha 1 (Ocorrências) + Caixinha 4 (Cobertura)
+    ├── Spatial join → Caixinha 1 (Ocorrências) + Caixinha 4 (Cobertura Operacional)
     ├── LLM (Claude) → Caixinha 2 (Dinâmica Criminal)
-    └── Filtro + Spatial join → Caixinha 3 (Fatores Urbanos)
+    ├── Filtro + Spatial join → Caixinha 3 (Fatores Urbanos)
+    └── Spatial join → Caixinha 5 (Contexto Territorial)
     ↓
 cache/
-    ├── presidente_vargas.json
-    ├── jardim_de_alah.json
-    └── ... (8 arquivos)
+    ├── presidente_vargas/
+    │   ├── ocorrencias.json
+    │   ├── dinamica_criminal.json
+    │   ├── fatores_urbanos.json
+    │   ├── cobertura_operacional.json
+    │   └── contexto_territorial.json
+    └── ... (8 pastas)
     ↓
 DASHBOARD (Streamlit)
     ├── Lê os JSONs do cache
@@ -213,11 +245,11 @@ DASHBOARD (Streamlit)
 **Por que pré-computar e não processar on-demand?**
 Os dados mudam semanalmente. O pipeline roda na segunda-feira; na terça, o dashboard está pronto e rápido. Chamadas ao LLM ficam fora do caminho crítico da reunião.
 
-**Por que ORCRIM está na Caixinha 2 e não numa caixinha própria?**
-No relatório, ORCRIM aparece como um campo de identificação e é mencionado no texto de Dinâmica Criminal. Os RELINTs já descrevem a influência de facções. Faz mais sentido o spatial join de domínio territorial ser um input que enriquece a síntese do LLM do que uma caixinha separada.
+**Por que Contexto Territorial é uma caixinha separada e não parte da Caixinha 2 (Dinâmica Criminal)?**
+São dimensões com naturezas e ritmos diferentes. ORCRIM e PSR são dados estruturais — mudam lentamente e vêm de fontes determinísticas (polígonos de domínio territorial, censo PSR). Dinâmica Criminal é uma síntese qualitativa que requer LLM. Misturá-los forçaria processamento LLM em dados que não precisam dele, e dificultaria reusar o contexto territorial em outras partes do dashboard (como o cabeçalho do relatório e o painel de coincidências). A Caixinha 5 alimenta a Caixinha 2 como input: o LLM recebe o ORCRIM dominante como contexto antes de sintetizar a narrativa de dinâmica criminal.
 
-**Por que PSR está na Caixinha 3 e não na Caixinha 2?**
-PSR aparece na seção "Fatores de Incidência Criminal" do relatório — com responsável definido (SMAS) e tratado operacionalmente como um fator urbano a ser resolvido, não como elemento da dinâmica criminal.
+**Por que PSR está na Caixinha 5 (Contexto Territorial) e não na Caixinha 3 (Fatores Urbanos)?**
+PSR é um dado demográfico-territorial com série histórica (2020, 2022, 2024) — informa o contexto estrutural da área, não um fator pontual a ser resolvido por um órgão municipal. Tratar PSR como fator urbano ao lado de "poste quebrado" distorce o peso analítico e complica a responsabilização operacional.
 
 **Por que o Disque Denúncia aparece em duas caixinhas?**
 Porque o mesmo relato pode descrever um crime ocorrido (Caixinha 1) e o padrão de como ele ocorre (Caixinha 2). O LLM processa o texto uma vez e extrai as duas dimensões simultaneamente.
