@@ -1,0 +1,17 @@
+{
+  "name": "CompStat Rio AI",
+  "short_name": "CompStat Rio",
+  "description": "Sala de Situação Conversacional para Inteligência Territorial",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#050816",
+  "theme_color": "#050816",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

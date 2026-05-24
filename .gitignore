@@ -2,10 +2,15 @@ __pycache__/
 *.pyc
 *.pyo
 .env
+.env.local
 .DS_Store
 node_modules/
 .next/
 frontend/.next/
+.venv/
+.pytest_cache/
+dist/
+coverage/
 
 # SQLite WAL sidecars — o compstat.db é versionado, estes não
 compstat.db-shm
