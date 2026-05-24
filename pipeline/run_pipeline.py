@@ -55,7 +55,18 @@ def process_area(sb: Client, area_nome: str, polygon) -> None:
         oc_base = build_ocorrencias_base(polygon)
     except Exception as e:
         log.error(f"  ocorrencias failed: {e}")
-        oc_base = {}
+        oc_base = {
+            "total_periodo": 0,
+            "variacao_yoy": "N/A",
+            "periodo_referencia": "N/A",
+            "por_tipo": {},
+            "por_hora": {},
+            "por_dia_semana": {},
+            "hora_critica": None,
+            "dia_critico": None,
+            "top_logradouros": [],
+            "heatmap_points": [],
+        }
     try:
         fat_base = build_fatores_urbanos_base(area_nome, polygon)
     except Exception as e:
