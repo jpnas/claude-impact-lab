@@ -14,6 +14,28 @@ A cada ciclo semanal, a equipe precisa produzir um Relatório Analítico por pol
 
 Um **pipeline** normaliza as 5 fontes em 6 dimensões de análise por área e persiste em SQLite. Um **dashboard web** lê essas dimensões e, sob demanda, usa o Claude para gerar o relatório e responder perguntas em chat multi-turno.
 
+## O que o sistema resolve
+
+Cada parte da plataforma ataca um gargalo concreto do ciclo semanal do CompStat.
+
+### 1. Geração do relatório
+
+O que antes levava horas de cópia-e-cola entre planilhas e documentos passa a sair em segundos. Com a área selecionada, o analista clica em **Gerar** e o Claude preenche o **template oficial do Relatório Analítico de Área** a partir das 6 dimensões já processadas — resumo executivo, perguntas norteadoras, ocorrências, dinâmica criminal, fatores urbanos e plano de ação. O texto aparece em tempo real (streaming). Regras de integridade impedem o modelo de inventar números: o que não tem fonte vem marcado como `_[Pendente — registros da FM-Rio]_`, em vez de ser estimado.
+
+### 2. Edição do relatório via prompt
+
+O relatório não é um PDF fechado. Ao lado do texto, um **chat multi-turno** permite ajustar o documento conversando: "resuma a seção de dinâmica criminal", "destaque os três trechos de maior risco", "reescreva o resumo executivo em tom mais direto". O Claude responde com o mesmo contexto das dimensões da área, então as edições continuam ancoradas nos dados — sem o analista precisar reabrir as fontes.
+
+### 3. Dashboard de apoio à apresentação
+
+Durante a reunião de terça, o analista não fica preso ao papel. O **dashboard** mostra as 6 dimensões da área em cards visuais e um **mapa de calor** das ocorrências, dando suporte visual à fala e permitindo responder na hora a perguntas do Prefeito e dos gestores — qual o horário crítico, onde estão os pontos cegos, qual fator urbano puxa o crime naquele trecho.
+
+### 4. Reuniões passadas e rastreio de decisões _(ideia futura — ainda não implementada)_
+
+> ⚠️ **Não implementado.** Esta seção descreve a direção que pretendemos seguir, não funcionalidade existente.
+
+Hoje as decisões tomadas na reunião se perdem em atas manuais. A ideia futura é **transcrever a reunião** e usar o Claude para gerar **atas estruturadas** automaticamente — extraindo as decisões, os responsáveis e os compromissos assumidos. Com isso, uma seção **"Reuniões passadas"** listaria todas as decisões de encontros anteriores e, ao lado de cada uma, mostraria a **variação nas métricas de crime desde que a decisão foi tomada** — fechando o ciclo entre o que foi decidido e o efeito real no território.
+
 ---
 
 ## Arquitetura
