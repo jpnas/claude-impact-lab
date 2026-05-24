@@ -5,3 +5,4 @@ pyshp>=2.3
 pandas>=1.5
 openpyxl>=3.0
 numpy>=1.24
+python-dotenv>=1.0
