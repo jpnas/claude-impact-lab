@@ -1,4 +1,5 @@
 from __future__ import annotations
+import uuid
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -35,34 +36,38 @@ async def chat_relatorio(slug: str, body: ChatBody):
 @router.get("/{slug}/relatorio")
 def get_relatorio(slug: str, reuniao_id: str | None = None):
     db = get_db()
-    area = db.table("areas").select("id").eq("slug", slug).execute()
-    if not area.data:
+    area = db.execute("SELECT id FROM areas WHERE slug = ?", (slug,)).fetchone()
+    if not area:
         raise HTTPException(status_code=404, detail="Área não encontrada")
-    query = (
-        db.table("relatorios")
-        .select("*")
-        .eq("area_id", area.data[0]["id"])
-    )
+
     if reuniao_id:
-        query = query.eq("reuniao_id", reuniao_id)
-    res = query.order("criado_em", desc=True).limit(1).execute()
-    if not res.data:
+        row = db.execute(
+            "SELECT * FROM relatorios WHERE area_id = ? AND reuniao_id = ? ORDER BY criado_em DESC LIMIT 1",
+            (area["id"], reuniao_id),
+        ).fetchone()
+    else:
+        row = db.execute(
+            "SELECT * FROM relatorios WHERE area_id = ? ORDER BY criado_em DESC LIMIT 1",
+            (area["id"],),
+        ).fetchone()
+
+    if not row:
         raise HTTPException(status_code=404, detail="Relatório não encontrado")
-    return res.data[0]
+    return dict(row)
 
 
 @router.put("/{slug}/relatorio")
 def salvar_relatorio(slug: str, body: SalvarBody):
     db = get_db()
-    area = db.table("areas").select("id").eq("slug", slug).execute()
-    if not area.data:
+    area = db.execute("SELECT id FROM areas WHERE slug = ?", (slug,)).fetchone()
+    if not area:
         raise HTTPException(status_code=404, detail="Área não encontrada")
-    res = db.table("relatorios").insert(
-        {
-            "area_id": area.data[0]["id"],
-            "reuniao_id": body.reuniao_id,
-            "conteudo": body.conteudo,
-            "status": body.status,
-        }
-    ).execute()
-    return res.data[0]
+
+    rel_id = str(uuid.uuid4())
+    db.execute(
+        "INSERT INTO relatorios (id, area_id, reuniao_id, conteudo, status) VALUES (?, ?, ?, ?, ?)",
+        (rel_id, area["id"], body.reuniao_id, body.conteudo, body.status),
+    )
+    db.commit()
+    row = db.execute("SELECT * FROM relatorios WHERE id = ?", (rel_id,)).fetchone()
+    return dict(row)

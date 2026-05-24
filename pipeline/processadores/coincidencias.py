@@ -105,16 +105,18 @@ Retorne APENAS o JSON."""
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=2048,
+            max_tokens=4096,
             messages=[{"role": "user", "content": prompt}],
         )
+        import re
         text = message.content[0].text.strip()
-        if text.startswith("```"):
-            parts = text.split("```")
-            text = parts[1]
-            if text.startswith("json"):
-                text = text[4:]
-        llm_result = json.loads(text.strip())
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+        if match:
+            text = match.group(1).strip()
+        start, end = text.find("{"), text.rfind("}")
+        if start != -1 and end != -1:
+            text = text[start:end + 1]
+        llm_result = json.loads(text)
     except Exception as e:
         logger.warning(f"coincidencias LLM failed: {e}")
         llm_result = {"trechos_avaliados": [], "recomendacoes": {}}

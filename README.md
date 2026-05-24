@@ -2,6 +2,8 @@
 
 Plataforma de inteligência territorial desenvolvida para o **Hackathon Anthropic 2026**, em parceria com a **Secretaria-Geral do CompStat Municipal da Prefeitura do Rio de Janeiro**.
 
+🎬 **[Assista à demo (vídeo)](https://youtu.be/Vvt6m8fRjAg)**
+
 O CompStat Municipal realiza reuniões semanais (terças-feiras) presididas pelo Prefeito. O analista usa esta plataforma para preparar a reunião e gerar automaticamente o **Relatório Analítico de Área** distribuído no encontro.
 
 ## O Problema
@@ -30,6 +32,56 @@ pipeline/  →  compstat.db (SQLite)  ←  backend/ (FastAPI)  ←  frontend/ (N
 | `frontend/` | Next.js 16 + React 19 + Tailwind 4 | Dashboard: seleção de área → 6 dimensões → geração de relatório + chat. |
 
 > O `compstat.db` já vem pronto no repositório (8 áreas, 6 dimensões cada). **Não é preciso clonar o repo de dados nem rodar o pipeline** para subir a aplicação — só para regenerar os dados (ver final).
+
+A ideia central é separar o **trabalho pesado e caro** (cruzar fontes heterogêneas, chamar o Claude para sintetizar inteligência) do **uso em tempo real** na reunião. O pipeline faz esse trabalho uma vez por ciclo e materializa o resultado em 6 dimensões por área no SQLite. Em runtime, o backend só lê dimensões já prontas — o Claude só volta a ser acionado quando o analista pede o relatório ou conversa com ele.
+
+### Fluxo ponta a ponta
+
+```
+ FONTES                       PIPELINE (offline)                 BANCO              RUNTIME
+ ──────                       ──────────────────                 ─────              ───────
+ ocorrências CSV   ─┐   Fase 1: determinística                                ┌─ dashboard
+ fatores CSV        │     ocorrencias / fatores                                │   (6 dimensões
+ câmeras CSV        ├──▶   cobertura / contexto    ──▶ dimensoes_  ──▶ FastAPI ─┤    + heatmap)
+ shapefile (8 pol.) │   Fase 2: enriquecimento LLM      analise            │   │
+ Disque Denúncia    │     ocorrências+DD, fatores+      (6 por área)       │   └─ relatório
+ RELINTs (DOCX)    ─┘     RELINT, dinâmica criminal   compstat.db          │      (stream SSE
+                       Fase 3: síntese LLM                                 │       + chat Claude)
+                         coincidências + recomendações ──────────────▶ Claude API ◀┘
+```
+
+#### 1. Ingestão e processamento (`pipeline/run_pipeline.py`)
+
+`load_areas()` lê os **8 polígonos** da Força Municipal do shapefile. Para cada área, os *processadores* (`pipeline/processadores/`) rodam em **3 fases** e o resultado de cada um é gravado como uma linha em `dimensoes_analise` (`upsert_dimensao`, com `ON CONFLICT(area_id, tipo)` — reprocessar sobrescreve):
+
+- **Fase 1 — determinística (sem LLM):** filtra cada fonte pelo polígono da área e agrega.
+  - `ocorrencias` — contagens por tipo, distribuição por hora/dia, hora e dia críticos, top logradouros e pontos do heatmap (das 115k ocorrências georreferenciadas).
+  - `fatores_urbanos` — fatores por tipo e órgão responsável.
+  - `cobertura_operacional` — câmeras, polígono da FM e pontos cegos.
+  - `contexto_territorial` — domínio de ORCRIM (CV/TCP/Milícia/ADA) e PSR.
+- **Fase 2 — enriquecimento via Claude:** cruza as bases da Fase 1 com fontes textuais/qualitativas.
+  - `enrich_ocorrencias_dd` agrega o **Disque Denúncia** (deduplicado por `id_denuncia`, filtrado por classe criminal e por polígono).
+  - `enrich_fatores_relint` extrai fatores adicionais dos **RELINTs** (DOCX lido via `zipfile`).
+  - `build_dinamica_criminal` sintetiza RELINTs + Disque Denúncia em uma narrativa de *modus operandi*, modalidade, rotas de fuga e pontos de receptação.
+- **Fase 3 — síntese final via Claude (`coincidencias`):** cruzamento espacial **determinístico** (proximidade entre top logradouros, fatores urbanos e pontos cegos → `score_prioridade`) seguido de uma **avaliação causal pelo Claude** (qual fator é realmente relevante para o padrão de crime), produzindo os trechos críticos priorizados e as recomendações operacionais (rota, horário, modelo de emprego, ações municipais).
+
+Saída: **`compstat.db`** com 8 áreas × 6 dimensões. O pipeline não derruba a aplicação — só atualiza as linhas das dimensões.
+
+#### 2. Persistência (`compstat.db`, schema em `backend/db.py`)
+
+SQLite versionado no repo. Tabelas principais: `areas` (as 8 áreas, com `slug`), `dimensoes_analise` (o cache do pipeline — `tipo` ∈ as 6 dimensões, `dados` em JSON), `relatorios` (rascunho/finalizado por área) e `mensagens_relatorio` (histórico do chat multi-turno). O schema é criado e as áreas são semeadas no primeiro acesso (`get_db`).
+
+#### 3. Backend (`backend/`, FastAPI)
+
+Leitura barata, escrita cara só sob demanda:
+
+- `GET /areas/{slug}/dimensoes` (`services/dimensoes.py`) apenas desserializa o JSON das 6 dimensões do banco — **zero processamento pesado, zero Claude**.
+- `POST .../relatorio/gerar` (`services/relatorio.py`) monta um *system prompt* com as 6 dimensões da área — **compactando arrays de coordenadas para contagens** (`_compactar`, evita estourar o contexto) — e envia o **template oficial** do Relatório Analítico de Área ao Claude. Regras de integridade no prompt **proíbem inventar dados**: campos sem fonte recebem o marcador `_[Pendente — registros da FM-Rio]_`. A resposta é transmitida **token a token via SSE** (`AsyncAnthropic.messages.stream`).
+- `POST .../relatorio/chat` mantém conversa multi-turno sobre o relatório, com o mesmo contexto das dimensões; cada mensagem (usuário e assistente) é persistida em `mensagens_relatorio`.
+
+#### 4. Frontend (`frontend/`, Next.js + React)
+
+O analista navega: **homepage** (seletor das 8 áreas, `cache_disponivel` indica quais já têm dimensões) → **dashboard** da área (`/areas/[slug]/dashboard` — as 6 dimensões em cards + mapa de calor das ocorrências) → **relatório** (`/areas/[slug]/relatorio`). Na página de relatório, o botão "Gerar" abre o stream SSE e o texto do Claude aparece em tempo real no artifact; ao lado, o painel de chat permite refinar e questionar o relatório. O cliente (`lib/api.ts`) consome o SSE lendo o `ReadableStream` e parseando as linhas `data:`.
 
 ---
 

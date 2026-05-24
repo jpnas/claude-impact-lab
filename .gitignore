@@ -10,3 +10,9 @@ frontend/.next/
 # SQLite WAL sidecars — o compstat.db é versionado, estes não
 compstat.db-shm
 compstat.db-wal
+
+# Tooling local (skills / MCP / permissões) — não faz parte do projeto
+.claude/
+.agents/
+.mcp.json
+skills-lock.json

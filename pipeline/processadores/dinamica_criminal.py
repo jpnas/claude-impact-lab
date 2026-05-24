@@ -78,14 +78,26 @@ def _find_relint(area_nome: str) -> Path | None:
 
 
 def _parse_llm_json(text: str) -> dict:
-    """Strip markdown fences and parse JSON."""
+    """Extract and parse the first JSON object from an LLM response."""
+    import re
     text = text.strip()
-    if text.startswith("```"):
-        parts = text.split("```")
-        text = parts[1]
-        if text.startswith("json"):
-            text = text[4:]
-    return json.loads(text.strip())
+    # Try to extract from markdown fences first
+    match = re.search(r"```(?:json)?\s*([\s\S]*?)```", text)
+    if match:
+        candidate = match.group(1).strip()
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            pass
+    # Find first { ... } block in raw text
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(text[start:end + 1])
+        except json.JSONDecodeError:
+            pass
+    raise ValueError(f"No valid JSON object found in LLM response (len={len(text)})")
 
 
 def build_dinamica_criminal(
@@ -128,7 +140,7 @@ Retorne APENAS o JSON, sem markdown."""
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=1024,
+            max_tokens=2048,
             messages=[{"role": "user", "content": prompt}],
         )
         return _parse_llm_json(message.content[0].text)
@@ -167,7 +179,7 @@ Retorne APENAS o JSON."""
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=512,
+            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
         extra = _parse_llm_json(message.content[0].text)
@@ -199,7 +211,7 @@ Retorne APENAS o JSON."""
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=512,
+            max_tokens=1024,
             messages=[{"role": "user", "content": prompt}],
         )
         extra = _parse_llm_json(message.content[0].text)

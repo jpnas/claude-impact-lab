@@ -18,8 +18,7 @@ DOMINIO_CSV = OUTROS / "dominio_territorial - Extração 1.csv"
 PSR_XLSX = OUTROS / "CPSR_2020_2022_2024.xlsx"
 
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
+DB_PATH = os.getenv("DB_PATH", str(Path(__file__).parent.parent / "compstat.db"))
 
 RAIO_METROS = 100
 DD_CLASSES_CRIMINAIS = {

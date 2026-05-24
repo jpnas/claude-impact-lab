@@ -1,9 +1,16 @@
 from __future__ import annotations
+import json
 import logging
+import os
+import sqlite3
+import uuid
 from datetime import datetime
-from supabase import create_client, Client
+from pathlib import Path
+from dotenv import load_dotenv
 
-from pipeline.config import SHAPEFILE, SUPABASE_URL, SUPABASE_SERVICE_KEY
+load_dotenv(Path(__file__).parent.parent / ".env")
+
+from pipeline.config import SHAPEFILE
 from pipeline.utils.shapefile import load_areas
 from pipeline.processadores.ocorrencias import build_ocorrencias_base
 from pipeline.processadores.fatores_urbanos import build_fatores_urbanos_base
@@ -17,36 +24,40 @@ from pipeline.processadores.coincidencias import build_coincidencias
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-
-def get_supabase() -> Client:
-    return create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY)
+_PROJECT_ROOT = Path(__file__).parent.parent
 
 
-def get_area_id(sb: Client, nome: str) -> str | None:
-    res = sb.table("areas").select("id").eq("nome", nome).execute()
-    if res.data:
-        return res.data[0]["id"]
-    return None
+def get_conn() -> sqlite3.Connection:
+    db_path = Path(os.getenv("DB_PATH", str(_PROJECT_ROOT / "compstat.db")))
+    conn = sqlite3.connect(str(db_path))
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL")
+    return conn
 
 
-def upsert_dimensao(sb: Client, area_id: str, tipo: str, dados: dict) -> None:
-    sb.table("dimensoes_analise").upsert(
-        {
-            "area_id": area_id,
-            "tipo": tipo,
-            "dados": dados,
-            "referencia_pipeline": datetime.utcnow().isoformat(),
-        },
-        on_conflict="area_id,tipo",
-    ).execute()
+def get_area_id(conn: sqlite3.Connection, nome: str) -> str | None:
+    row = conn.execute("SELECT id FROM areas WHERE nome = ?", (nome,)).fetchone()
+    return row["id"] if row else None
+
+
+def upsert_dimensao(conn: sqlite3.Connection, area_id: str, tipo: str, dados: dict) -> None:
+    conn.execute(
+        """INSERT INTO dimensoes_analise (id, area_id, tipo, dados, referencia_pipeline)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(area_id, tipo) DO UPDATE SET
+               dados = excluded.dados,
+               referencia_pipeline = excluded.referencia_pipeline""",
+        (str(uuid.uuid4()), area_id, tipo, json.dumps(dados, ensure_ascii=False), datetime.utcnow().isoformat()),
+    )
+    conn.commit()
     log.info(f"  ✓ {tipo}")
 
 
-def process_area(sb: Client, area_nome: str, polygon) -> None:
+def process_area(conn: sqlite3.Connection, area_nome: str, polygon) -> None:
     log.info(f"=== {area_nome} ===")
-    area_id = get_area_id(sb, area_nome)
+    area_id = get_area_id(conn, area_nome)
     if not area_id:
-        log.warning(f"  área não encontrada no Supabase: {area_nome}")
+        log.warning(f"  área não encontrada no banco: {area_nome}")
         return
 
     # Phase 1: deterministic
@@ -83,8 +94,8 @@ def process_area(sb: Client, area_nome: str, polygon) -> None:
         log.error(f"  contexto_territorial failed: {e}")
         ctx = {"orcrim_dominante": "N/A", "orcrim_por_tipo": {}, "comunidades_proximas": [], "psr": {}}
 
-    upsert_dimensao(sb, area_id, "cobertura_operacional", cob)
-    upsert_dimensao(sb, area_id, "contexto_territorial", ctx)
+    upsert_dimensao(conn, area_id, "cobertura_operacional", cob)
+    upsert_dimensao(conn, area_id, "contexto_territorial", ctx)
 
     # Phase 2: LLM enrichment
     log.info("  Fase 2 (LLM)...")
@@ -102,11 +113,19 @@ def process_area(sb: Client, area_nome: str, polygon) -> None:
         din = build_dinamica_criminal(area_nome, polygon, ctx.get("orcrim_dominante", "N/A"))
     except Exception as e:
         log.error(f"  dinamica_criminal failed: {e}")
-        din = {"modalidade_predominante": "N/A", "modus_operandi": "", "rotas_de_fuga": [], "pontos_de_receptacao": [], "perfil_suspeitos": "", "orcrim_influencia": "", "narrativa_completa": ""}
+        din = {
+            "modalidade_predominante": "N/A",
+            "modus_operandi": "",
+            "rotas_de_fuga": [],
+            "pontos_de_receptacao": [],
+            "perfil_suspeitos": "",
+            "orcrim_influencia": "",
+            "narrativa_completa": "",
+        }
 
-    upsert_dimensao(sb, area_id, "ocorrencias", oc_final)
-    upsert_dimensao(sb, area_id, "fatores_urbanos", fat_final)
-    upsert_dimensao(sb, area_id, "dinamica_criminal", din)
+    upsert_dimensao(conn, area_id, "ocorrencias", oc_final)
+    upsert_dimensao(conn, area_id, "fatores_urbanos", fat_final)
+    upsert_dimensao(conn, area_id, "dinamica_criminal", din)
 
     # Phase 3: LLM synthesis
     log.info("  Fase 3 (síntese)...")
@@ -116,22 +135,18 @@ def process_area(sb: Client, area_nome: str, polygon) -> None:
         log.error(f"  coincidencias failed: {e}")
         coin = {"trechos_criticos": [], "recomendacoes": {}}
 
-    upsert_dimensao(sb, area_id, "coincidencias", coin)
+    upsert_dimensao(conn, area_id, "coincidencias", coin)
     log.info(f"  Área concluída.")
 
 
 def main():
     areas = load_areas(SHAPEFILE)
     log.info(f"Pipeline iniciado para {len(areas)} áreas")
-    try:
-        sb = get_supabase()
-    except Exception as e:
-        log.error(f"Falha ao conectar ao Supabase: {e}")
-        return
-    # Verify area names match Supabase
-    log.info("Verificando correspondência de áreas com Supabase...")
+
+    conn = get_conn()
+    log.info("Verificando correspondência de áreas com banco...")
     for nome in areas.keys():
-        aid = get_area_id(sb, nome)
+        aid = get_area_id(conn, nome)
         if aid:
             log.info(f"  ✓ {nome[:50]}")
         else:
@@ -139,9 +154,11 @@ def main():
 
     for nome, polygon in areas.items():
         try:
-            process_area(sb, nome, polygon)
+            process_area(conn, nome, polygon)
         except Exception as e:
             log.error(f"Erro na área {nome}: {e}", exc_info=True)
+
+    conn.close()
     log.info("Pipeline concluído.")
 
 

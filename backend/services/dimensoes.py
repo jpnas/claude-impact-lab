@@ -1,29 +1,36 @@
+import json
 from backend.db import get_db
 
 
 def get_dimensoes(slug: str) -> dict | None:
     db = get_db()
-    res = db.table("areas").select("id,nome,slug").eq("slug", slug).execute()
-    if not res.data:
+    row = db.execute(
+        "SELECT id, nome, slug FROM areas WHERE slug = ?", (slug,)
+    ).fetchone()
+    if not row:
         return None
-    area = res.data[0]
-    area_id = area["id"]
-    dims = db.table("dimensoes_analise").select("tipo,dados,referencia_pipeline").eq("area_id", area_id).execute()
-    result = {"area": area, "dimensoes": {}}
-    for row in dims.data:
-        result["dimensoes"][row["tipo"]] = {
-            "dados": row["dados"],
-            "referencia_pipeline": row["referencia_pipeline"],
+    area = dict(row)
+    dims = db.execute(
+        "SELECT tipo, dados, referencia_pipeline FROM dimensoes_analise WHERE area_id = ?",
+        (area["id"],),
+    ).fetchall()
+    result: dict = {"area": area, "dimensoes": {}}
+    for d in dims:
+        result["dimensoes"][d["tipo"]] = {
+            "dados": json.loads(d["dados"]),
+            "referencia_pipeline": d["referencia_pipeline"],
         }
     return result
 
 
 def list_areas() -> list[dict]:
     db = get_db()
-    areas_res = db.table("areas").select("id,nome,slug").execute()
-    dims_res = db.table("dimensoes_analise").select("area_id").execute()
-    area_ids_with_cache = {row["area_id"] for row in dims_res.data}
+    areas = db.execute("SELECT id, nome, slug FROM areas").fetchall()
+    area_ids_with_cache = {
+        row[0]
+        for row in db.execute("SELECT DISTINCT area_id FROM dimensoes_analise").fetchall()
+    }
     return [
-        {**area, "cache_disponivel": area["id"] in area_ids_with_cache}
-        for area in areas_res.data
+        {**dict(a), "cache_disponivel": a["id"] in area_ids_with_cache}
+        for a in areas
     ]

@@ -1,27 +1,191 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ============================================================
+   CompStat Rio — Tactical Intelligence command-center theme
+   ============================================================ */
+
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* surfaces */
+  --bg: #080b10;
+  --bg-elev: #0e131c;
+  --bg-elev-2: #141b27;
+  --bg-inset: #0a0e15;
+
+  /* lines & text */
+  --border: rgba(150, 170, 200, 0.11);
+  --border-strong: rgba(150, 170, 200, 0.22);
+  --text: #e9edf4;
+  --text-dim: #8a97aa;
+  --text-faint: #586577;
+
+  /* signal palette */
+  --accent: #ff5a36;        /* signal orange-red — heat, alerts, critical */
+  --accent-soft: rgba(255, 90, 54, 0.14);
+  --data: #46d6c6;          /* teal — data, cameras, positive */
+  --data-soft: rgba(70, 214, 198, 0.12);
+  --warn: #f5a623;
+  --danger: #ff3b51;
+  --good: #46d6c6;
+
+  --grid: rgba(120, 145, 180, 0.045);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-bg-elev: var(--bg-elev);
+  --color-accent: var(--accent);
+  --color-data: var(--data);
+  --font-sans: var(--font-plex-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-display: var(--font-plex-cond);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  border-color: var(--border);
+}
+
+html {
+  background: var(--bg);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-plex-sans), system-ui, sans-serif;
+  font-feature-settings: "ss02", "cv05";
+  -webkit-font-smoothing: antialiased;
+  position: relative;
 }
+
+/* Atmosphere: faint engineering grid + signal glow + grain */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 56px 56px, 56px 56px;
+  mask-image: radial-gradient(ellipse 120% 90% at 50% -10%, black 40%, transparent 100%);
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 500px at 12% -8%, rgba(255, 90, 54, 0.10), transparent 60%),
+    radial-gradient(900px 600px at 95% 0%, rgba(70, 214, 198, 0.07), transparent 55%);
+}
+
+#__next, body > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- Typography helpers ---------- */
+.font-display {
+  font-family: var(--font-plex-cond), var(--font-plex-sans), sans-serif;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.font-mono { font-family: var(--font-plex-mono), monospace; }
+
+/* Tactical micro-label: uppercase, tracked, mono */
+.label {
+  font-family: var(--font-plex-mono), monospace;
+  font-size: 0.625rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+/* Tabular numerals for metrics */
+.tnum {
+  font-family: var(--font-plex-mono), monospace;
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum";
+}
+
+/* ---------- Panel ---------- */
+.panel {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.018), transparent 40%),
+    var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  position: relative;
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.panel:hover { border-color: var(--border-strong); }
+/* notched corner accent */
+.panel::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  width: 10px;
+  height: 10px;
+  border-top: 1px solid var(--accent);
+  border-left: 1px solid var(--accent);
+  opacity: 0.6;
+}
+
+/* ---------- Bars ---------- */
+.bar-track { background: rgba(150, 170, 200, 0.08); border-radius: 1px; }
+
+/* status dot */
+@keyframes pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--accent-soft); }
+  50% { opacity: 0.55; box-shadow: 0 0 0 4px transparent; }
+}
+.live-dot {
+  width: 7px; height: 7px; border-radius: 999px;
+  background: var(--data);
+  box-shadow: 0 0 8px var(--data);
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+/* staggered entrance */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.rise { animation: rise 0.5s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+/* ---------- Leaflet dark overrides ---------- */
+.leaflet-container {
+  background: #0a0e15 !important;
+  font-family: var(--font-plex-mono), monospace;
+}
+.leaflet-control-attribution {
+  background: rgba(8, 11, 16, 0.7) !important;
+  color: var(--text-faint) !important;
+  font-size: 9px !important;
+  backdrop-filter: blur(4px);
+}
+.leaflet-control-attribution a { color: var(--text-dim) !important; }
+.leaflet-control-zoom a {
+  background: rgba(14, 19, 28, 0.92) !important;
+  color: var(--text) !important;
+  border-color: var(--border) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--bg-elev-2) !important; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip {
+  background: var(--bg-elev-2) !important;
+  color: var(--text) !important;
+  border: 1px solid var(--border-strong);
+  border-radius: 4px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6) !important;
+}
+.leaflet-popup-content { font-family: var(--font-plex-mono), monospace; font-size: 11px; }
+
+/* thin custom scrollbar */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
