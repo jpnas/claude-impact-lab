@@ -4,7 +4,7 @@ from dotenv import load_dotenv
 
 load_dotenv(Path(__file__).parent.parent / ".env")
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "../claude_impact_lab_compstat_rio"))
+DATA_ROOT = Path(os.getenv("DATA_ROOT", str(Path(__file__).parent.parent.parent / "claude_impact_lab_compstat_rio")))
 DADOS = DATA_ROOT / "dados"
 RELINTS = DATA_ROOT / "relints"
 SHAPEFILE = DATA_ROOT / "sh_area_forca" / "areas_forca_municipal"

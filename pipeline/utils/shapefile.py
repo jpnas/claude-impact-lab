@@ -23,6 +23,8 @@ def _read_dbf(dbf_path: Path) -> list[dict]:
         records = []
         for _ in range(num_records):
             raw = f.read(record_size)
+            if raw[0] == 0x2A:
+                continue  # deleted record
             vals = {}
             offset = 1
             for name, typ, length in fields:
@@ -59,4 +61,5 @@ def load_areas(shapefile_base: Path) -> dict[str, sg.Polygon]:
     """Returns {nome_subar: Polygon} for all 8 FM areas."""
     records = _read_dbf(Path(str(shapefile_base) + ".dbf"))
     polygons = _read_shp_polygons(Path(str(shapefile_base) + ".shp"))
+    assert len(records) == len(polygons), f"DBF/SHP mismatch: {len(records)} vs {len(polygons)}"
     return {rec["nome_subar"]: poly for rec, poly in zip(records, polygons)}
