@@ -2,48 +2,128 @@
 
 Plataforma de inteligência territorial desenvolvida para o **Hackathon Anthropic 2026**, em parceria com a **Secretaria-Geral do CompStat Municipal da Prefeitura do Rio de Janeiro**.
 
+O CompStat Municipal realiza reuniões semanais (terças-feiras) presididas pelo Prefeito. O analista usa esta plataforma para preparar a reunião e gerar automaticamente o **Relatório Analítico de Área** distribuído no encontro.
+
 ## O Problema
 
-O CompStat Municipal opera sobre 22 áreas prioritárias de segurança pública na cidade do Rio. A cada ciclo semanal, a equipe precisa produzir um **Relatório Analítico de Área** por polígono — documento que subsidia diretamente as reuniões presididas pelo Prefeito.
-
-O gargalo está na síntese: dados de ocorrências criminais georreferenciadas, denúncias qualitativas (Disque Denúncia), relatórios de inteligência de campo (RELINTs) e fatores urbanos (iluminação, vegetação, desordem urbana) vivem em silos separados. Cruzar essas camadas manualmente consome horas de trabalho — horas que deveriam estar sendo usadas em interpretação e tomada de decisão.
+A cada ciclo semanal, a equipe precisa produzir um Relatório Analítico por polígono de segurança. O gargalo é a síntese: ocorrências georreferenciadas, denúncias (Disque Denúncia), relatórios de inteligência de campo (RELINTs) e fatores urbanos (iluminação, vegetação, desordem) vivem em silos. Cruzar essas camadas manualmente consome horas.
 
 ## A Solução
 
-Uma plataforma baseada em IA (Claude) que:
+Um **pipeline** normaliza as 5 fontes em 6 dimensões de análise por área e persiste em SQLite. Um **dashboard web** lê essas dimensões e, sob demanda, usa o Claude para gerar o relatório e responder perguntas em chat multi-turno.
 
-1. **Ingere e normaliza** as 5 fontes de dados do CompStat (ocorrências lat/long, polígonos FM, fatores urbanos, Disque Denúncia, RELINTs)
-2. **Cruza automaticamente** as camadas espaciais e qualitativas para identificar **coincidências de alto risco** — o "bingo" onde mancha criminal, fator urbano e dinâmica criminal se sobrepõem no mesmo trecho
-3. **Sintetiza** a dinâmica criminal via LLM: modus operandi, rotas de fuga, pontos de receptação, influência de ORCRIMs
-4. **Responde automaticamente** às 4 perguntas norteadoras das reuniões CompStat:
-   - Qual deve ser a rota da FM?
-   - Qual o horário de patrulhamento ideal?
-   - Qual o modelo de emprego (moto, viatura, a pé)?
-   - Como os órgãos devem resolver os fatores urbanos?
-5. **Gera o Relatório Analítico de Área** completo — de horas de compilação manual para minutos
+---
 
-## Dados
+## Arquitetura
 
-Os dados utilizados estão no repositório de dados do projeto:
-[`claude_impact_lab_compstat_rio`](https://github.com/jpnas/claude_impact_lab_compstat_rio)
+São **3 componentes**. Em runtime, a fonte de dados é o SQLite **`compstat.db`** (já versionado no repo, populado) — Supabase **não** é necessário para rodar.
 
-Fontes:
-- Ocorrências criminais com geolocalização (CSV)
-- Polígonos de atuação da Força Municipal (Shapefile)
-- Fatores urbanos de incidência criminal (CSV)
-- Disque Denúncia (CSV)
-- RELINTs da Força Municipal (DOCX)
+```
+pipeline/  →  compstat.db (SQLite)  ←  backend/ (FastAPI)  ←  frontend/ (Next.js)
+ (offline)        (versionado)            uvicorn :8000          npm dev :3000
+```
 
-## Stack
+| Componente | Stack | Papel |
+|---|---|---|
+| `pipeline/` | Python (shapely, pyshp, pandas, anthropic) | Processa as fontes e popula `compstat.db`. Roda offline, antes da reunião. **Opcional** para só rodar a app. |
+| `backend/` | FastAPI + SQLite + Claude API | Serve as dimensões e faz streaming (SSE) da geração de relatório e do chat. |
+| `frontend/` | Next.js 16 + React 19 + Tailwind 4 | Dashboard: seleção de área → 6 dimensões → geração de relatório + chat. |
 
-- **IA:** Claude API (Anthropic) — síntese qualitativa, geração de relatório, respostas às perguntas norteadoras
-- **Geoespacial:** Python + GeoPandas + Shapely
-- **Visualização:** Folium / Leaflet (heatmaps interativos)
-- **Processamento de texto:** LLM pipeline para extração de entidades de documentos não estruturados
+> O `compstat.db` já vem pronto no repositório (8 áreas, 6 dimensões cada). **Não é preciso clonar o repo de dados nem rodar o pipeline** para subir a aplicação — só para regenerar os dados (ver final).
 
-## Contexto
+---
 
-O CompStat Municipal do Rio é inspirado no modelo criado pelo NYPD nos anos 1990. Diferentemente das polícias estaduais, atua sobre a premissa de que **o ambiente urbano degradado é o facilitador estrutural da criminalidade oportunista** — e coordena órgãos municipais (Comlurb, RioLuz, SEOP, SMAS, Seconserva, CET-Rio) para resolver esses fatores de forma integrada e baseada em evidências.
+## Pré-requisitos
+
+- **Python 3.11+**
+- **Node.js 20+**
+- Uma **API key da Anthropic** (`ANTHROPIC_API_KEY`) — necessária para gerar relatórios e usar o chat. O dashboard e as 6 dimensões funcionam sem a key; só a geração via Claude exige.
+
+---
+
+## Rodando a aplicação
+
+### 1. Clonar
+
+```bash
+git clone <url-do-repo> claude-impact-lab
+cd claude-impact-lab
+```
+
+### 2. Backend (FastAPI)
+
+A partir da **raiz do repositório**:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate          # fish: source .venv/bin/activate.fish
+
+pip install -r backend/requirements.txt
+
+cp .env.example .env               # edite e coloque sua ANTHROPIC_API_KEY
+uvicorn backend.main:app --reload --port 8000
+```
+
+> O backend precisa ser iniciado da raiz (módulo `backend.main:app`) por causa dos imports `from backend...`. Health check: http://localhost:8000/health
+
+`.env` (a partir de `.env.example`):
+
+```
+ANTHROPIC_API_KEY=sk-ant-...        # obrigatória para gerar relatório / chat
+DB_PATH=./compstat.db               # default; já aponta para o banco versionado
+DATA_ROOT=../claude_impact_lab_compstat_rio   # só usado pelo pipeline
+```
+
+### 3. Frontend (Next.js)
+
+Em outro terminal:
+
+```bash
+cd frontend
+npm install
+cp .env.local.example .env.local   # NEXT_PUBLIC_API_URL=http://localhost:8000
+npm run dev
+```
+
+Abra **http://localhost:3000**.
+
+---
+
+## API (backend)
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET`  | `/health` | Health check |
+| `GET`  | `/areas` | Lista as 8 áreas (com `cache_disponivel`) |
+| `GET`  | `/areas/{slug}/dimensoes` | As 6 dimensões da área |
+| `POST` | `/areas/{slug}/relatorio/gerar` | Gera o relatório (stream SSE) |
+| `POST` | `/areas/{slug}/relatorio/chat` | Chat multi-turno sobre o relatório (stream SSE) |
+| `GET`  | `/areas/{slug}/relatorio` | Recupera relatório salvo |
+| `PUT`  | `/areas/{slug}/relatorio` | Salva/finaliza o relatório |
+
+As 6 dimensões por área: `ocorrencias`, `dinamica_criminal`, `fatores_urbanos`, `cobertura_operacional`, `contexto_territorial`, `coincidencias`.
+
+---
+
+## Regenerar os dados (pipeline — opcional)
+
+Só é necessário se quiser reprocessar as fontes do zero. Requer o **repositório de dados** clonado ao lado deste:
+
+```bash
+# ao lado de claude-impact-lab/
+git clone https://github.com/jpnas/claude_impact_lab_compstat_rio
+```
+
+Depois, da raiz deste repo (com a venv ativa e `ANTHROPIC_API_KEY` no `.env`):
+
+```bash
+pip install -r pipeline/requirements.txt
+python -m pipeline.run_pipeline
+```
+
+Isso reconstrói o `compstat.db`. O caminho do repo de dados é configurável via `DATA_ROOT` no `.env`.
+
+Fontes processadas: ocorrências criminais (CSV), polígonos da Força Municipal (Shapefile), fatores urbanos (CSV), Disque Denúncia (CSV) e RELINTs (DOCX). Detalhes em `CLAUDE.md` e `brainstorming/`.
 
 ---
 

@@ -6,3 +6,7 @@ __pycache__/
 node_modules/
 .next/
 frontend/.next/
+
+# SQLite WAL sidecars — o compstat.db é versionado, estes não
+compstat.db-shm
+compstat.db-wal
