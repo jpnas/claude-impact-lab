@@ -14,6 +14,62 @@ A cada ciclo semanal, a equipe precisa produzir um Relatório Analítico por pol
 
 Um **pipeline** normaliza as 5 fontes em 6 dimensões de análise por área e persiste em SQLite. Um **dashboard web** lê essas dimensões e, sob demanda, usa o Claude para gerar o relatório e responder perguntas em chat multi-turno.
 
+## O que o sistema resolve
+      18 +
+      19 +Cada parte da plataforma ataca um gargalo concreto do ciclo semanal d
+         +o CompStat.
+      20 +
+      21 +### 1. Geração do relatório
+      22 +
+      23 +O que antes levava horas de cópia-e-cola entre planilhas e documentos
+         + passa a sair em segundos. Com a área selecionada, o analista clica e
+         +m **Gerar** e o Claude preenche o **template oficial do Relatório Ana
+         +lítico de Área** a partir das 6 dimensões já processadas — resumo exe
+         +cutivo, perguntas norteadoras, ocorrências, dinâmica criminal, fatore
+         +s urbanos e plano de ação. O texto aparece em tempo real (streaming).
+         + Regras de integridade impedem o modelo de inventar números: o que nã
+         +o tem fonte vem marcado como `_[Pendente — registros da FM-Rio]_`, em
+         + vez de ser estimado.
+      24 +
+      25 +### 2. Edição do relatório via prompt
+      26 +
+      27 +O relatório não é um PDF fechado. Ao lado do texto, um **chat multi-t
+         +urno** permite ajustar o documento conversando: "resuma a seção de di
+         +nâmica criminal", "destaque os três trechos de maior risco", "reescre
+         +va o resumo executivo em tom mais direto". O Claude responde com o me
+         +smo contexto das dimensões da área, então as edições continuam ancora
+         +das nos dados — sem o analista precisar reabrir as fontes.
+      28 +
+      29 +### 3. Dashboard de apoio à apresentação
+      30 +
+      31 +Durante a reunião de terça, o analista não fica preso ao papel. O **d
+         +ashboard** mostra as 6 dimensões da área em cards visuais e um **mapa
+         + de calor** das ocorrências, dando suporte visual à fala e permitindo
+         + responder na hora a perguntas do Prefeito e dos gestores — qual o ho
+         +rário crítico, onde estão os pontos cegos, qual fator urbano puxa o c
+         +rime naquele trecho.
+      32 +
+         +ashboard** mostra as 6 dimensões da área em cards visuais e um **mapa
+         + de calor** das ocorrências, dando suporte visual à fala e permitindo
+         + responder na hora a perguntas do Prefeito e dos gestores — qual o ho
+         +rário crítico, onde estão os pontos cegos, qual fator urbano puxa o c
+         +rime naquele trecho.
+      32 +
+      33 +### 4. Reuniões passadas e rastreio de decisões _(ideia futura — aind
+         +a não implementada)_
+      34 +
+      35 +> ⚠️ **Não implementado.** Esta seção descreve a direção que pretende
+         +mos seguir, não funcionalidade existente.
+      36 +
+      37 +Hoje as decisões tomadas na reunião se perdem em atas manuais. A idei
+         +a futura é **transcrever a reunião** e usar o Claude para gerar **ata
+         +s estruturadas** automaticamente — extraindo as decisões, os responsá
+         +veis e os compromissos assumidos. Com isso, uma seção **"Reuniões pas
+         +sadas"** listaria todas as decisões de encontros anteriores e, ao lad
+         +o de cada uma, mostraria a **variação nas métricas de crime desde que
+         + a decisão foi tomada** — fechando o ciclo entre o que foi decidido e
+         + o efeito real no território.
+      38 +
 ---
 
 ## Arquitetura
