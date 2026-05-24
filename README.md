@@ -18,7 +18,7 @@ Um **pipeline** normaliza as 5 fontes em 6 dimensões de análise por área e pe
 
 ## Arquitetura
 
-São **3 componentes**. Em runtime, a fonte de dados é o SQLite **`compstat.db`** (já versionado no repo, populado) — Supabase **não** é necessário para rodar.
+São **3 componentes**. Em runtime, a fonte de dados é o SQLite **`compstat.db`** (já versionado no repo, populado).
 
 ```
 pipeline/  →  compstat.db (SQLite)  ←  backend/ (FastAPI)  ←  frontend/ (Next.js)
