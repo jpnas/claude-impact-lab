@@ -14,7 +14,7 @@ const badgeClassesByRisk: Record<RiskLevel, string> = {
 
 export function RiskScoreBadge({
   segment
-}: RiskScoreBadgeProps): JSX.Element {
+}: RiskScoreBadgeProps): React.ReactElement {
   return (
     <span
       className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-normal ${badgeClassesByRisk[segment.riskLevel]}`}

@@ -7,7 +7,7 @@ type RiskMapProps = {
   segments: EnrichedAreaSegment[];
 };
 
-export function RiskMap({ segments }: RiskMapProps): JSX.Element {
+export function RiskMap({ segments }: RiskMapProps): React.ReactElement {
   return (
     <section className="rounded-lg border border-cyan-300/15 bg-rio-panel/70 p-4 shadow-glow">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

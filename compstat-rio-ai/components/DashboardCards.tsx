@@ -16,7 +16,7 @@ type DashboardCardsProps = {
 
 export function DashboardCards({
   areaData
-}: DashboardCardsProps): JSX.Element {
+}: DashboardCardsProps): React.ReactElement {
   const prioritySegment = findPrioritySegment(areaData.segments);
   const bingoCount = areaData.segments.filter((segment) => segment.bingo).length;
 

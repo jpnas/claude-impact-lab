@@ -7,7 +7,7 @@ import { RiskMap } from "@/components/RiskMap";
 import { buildActionPlan } from "@/lib/actionPlan";
 import { getEnrichedAreaData } from "@/lib/mockData";
 
-export default function Home(): JSX.Element {
+export default function Home(): React.ReactElement {
   const areaData = getEnrichedAreaData();
   const actionPlan = buildActionPlan();
 

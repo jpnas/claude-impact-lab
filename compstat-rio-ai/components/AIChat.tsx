@@ -17,7 +17,7 @@ const suggestedQuestions = [
   "Qual o plano de ação?"
 ];
 
-export function AIChat(): JSX.Element {
+export function AIChat(): React.ReactElement {
   const [inputValue, setInputValue] = useState(suggestedQuestions[0]);
   const [isLoading, setIsLoading] = useState(false);
   const [messages, setMessages] = useState<ChatEntry[]>([

@@ -8,7 +8,7 @@ type ActionPlanTableProps = {
 
 export function ActionPlanTable({
   actions
-}: ActionPlanTableProps): JSX.Element {
+}: ActionPlanTableProps): React.ReactElement {
   return (
     <section className="rounded-lg border border-white/10 bg-white/[0.055] p-4">
       <div className="mb-4 flex items-center gap-2">

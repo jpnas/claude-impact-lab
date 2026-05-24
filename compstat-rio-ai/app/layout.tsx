@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({
   children
-}: Readonly<{ children: React.ReactNode }>): JSX.Element {
+}: Readonly<{ children: React.ReactNode }>): React.ReactElement {
   return (
     <html lang="pt-BR">
       <body>{children}</body>
