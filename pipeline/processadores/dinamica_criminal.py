@@ -95,9 +95,10 @@ def build_dinamica_criminal(
 ) -> dict:
     """LLM synthesises RELINT + top 40 Disque Denúncia into criminal dynamics summary."""
     relint_path = _find_relint(area_nome)
-    relint_text = (
-        read_docx_text(relint_path) if relint_path else "(RELINT não disponível)"
-    )
+    try:
+        relint_text = read_docx_text(relint_path) if relint_path else "(RELINT não disponível)"
+    except Exception:
+        relint_text = "(RELINT indisponível)"
     relatos = _top_dd_for_area(polygon)
 
     client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
@@ -124,12 +125,25 @@ Retorne um JSON com exatamente estas chaves:
 
 Retorne APENAS o JSON, sem markdown."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1024,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return _parse_llm_json(message.content[0].text)
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return _parse_llm_json(message.content[0].text)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"dinamica_criminal LLM failed for {area_nome}: {e}")
+        return {
+            "modalidade_predominante": "Não disponível",
+            "modus_operandi": "Análise LLM indisponível",
+            "rotas_de_fuga": [],
+            "pontos_de_receptacao": [],
+            "perfil_suspeitos": "",
+            "orcrim_influencia": orcrim_dominante,
+            "narrativa_completa": "Análise automática indisponível para esta área.",
+        }
 
 
 def enrich_ocorrencias_dd(base: dict, polygon: sg.Polygon) -> dict:
@@ -150,13 +164,18 @@ Relatos:
 
 Retorne APENAS o JSON."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    extra = _parse_llm_json(message.content[0].text)
-    return {**base, **extra}
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        extra = _parse_llm_json(message.content[0].text)
+        return {**base, **extra}
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"enrich LLM failed: {e}")
+        return base
 
 
 def enrich_fatores_relint(base: dict, area_nome: str) -> dict:
@@ -177,10 +196,15 @@ Retorne JSON:
 
 Retorne APENAS o JSON."""
 
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=512,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    extra = _parse_llm_json(message.content[0].text)
-    return {**base, **extra}
+    try:
+        message = client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=512,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        extra = _parse_llm_json(message.content[0].text)
+        return {**base, **extra}
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning(f"enrich LLM failed: {e}")
+        return base
