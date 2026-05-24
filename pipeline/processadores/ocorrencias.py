@@ -8,22 +8,29 @@ import shapely.geometry as sg
 from pipeline.config import OCORRENCIAS_CSV, JANELA_MESES
 from pipeline.utils.geo import point_in_polygon
 
+_ocorrencias_cache: pd.DataFrame | None = None
+
 
 def _load_ocorrencias() -> pd.DataFrame:
-    df = pd.read_csv(OCORRENCIAS_CSV, encoding="utf-8", low_memory=False)
-    # 'data' column contains crime date in DD/MM/YYYY format
-    df["data_fato"] = pd.to_datetime(df["data"], format="%d/%m/%Y", errors="coerce")
-    return df.dropna(subset=["data_fato"])
+    global _ocorrencias_cache
+    if _ocorrencias_cache is None:
+        df = pd.read_csv(OCORRENCIAS_CSV, encoding="utf-8", low_memory=False)
+        # 'data' column contains crime date in DD/MM/YYYY format
+        df["data_fato"] = pd.to_datetime(df["data"], dayfirst=True, errors="coerce")
+        _ocorrencias_cache = df.dropna(subset=["data_fato"])
+    return _ocorrencias_cache
 
 
 def _spatial_filter(df: pd.DataFrame, polygon: sg.Polygon) -> pd.DataFrame:
-    mask = df.apply(
-        lambda r: point_in_polygon(r["latitude"], r["longitude"], polygon)
-        if pd.notna(r.get("latitude")) and pd.notna(r.get("longitude"))
-        else False,
-        axis=1,
-    )
-    return df[mask]
+    valid = df["latitude"].notna() & df["longitude"].notna()
+    df_valid = df[valid].copy()
+    if df_valid.empty:
+        return df_valid
+    from shapely.vectorized import contains
+    lons = df_valid["longitude"].to_numpy(dtype=float)
+    lats = df_valid["latitude"].to_numpy(dtype=float)
+    mask = contains(polygon, lons, lats)
+    return df_valid[mask]
 
 
 def build_ocorrencias_base(polygon: sg.Polygon, ref_date: date | None = None) -> dict:
@@ -65,9 +72,11 @@ def build_ocorrencias_base(polygon: sg.Polygon, ref_date: date | None = None) ->
 
     top_locf = periodo["locf"].dropna().value_counts().head(10)
 
-    heatmap_points = []
-    for _, row in periodo.dropna(subset=["latitude", "longitude"]).iterrows():
-        heatmap_points.append([round(row["latitude"], 4), round(row["longitude"], 4), 1.0])
+    sub = periodo.dropna(subset=["latitude", "longitude"]).head(500)
+    heatmap_points = [
+        [round(float(row.latitude), 4), round(float(row.longitude), 4), 1.0]
+        for row in sub.itertuples()
+    ]
 
     hora_critica = max(por_hora, key=por_hora.get) + "h" if por_hora else None
     dia_critico = max(por_dia, key=por_dia.get) if por_dia else None
@@ -84,5 +93,5 @@ def build_ocorrencias_base(polygon: sg.Polygon, ref_date: date | None = None) ->
         "top_logradouros": [
             {"nome": nome, "contagem": int(cnt)} for nome, cnt in top_locf.items()
         ],
-        "heatmap_points": heatmap_points[:500],  # cap for Supabase JSON size
+        "heatmap_points": heatmap_points,
     }
