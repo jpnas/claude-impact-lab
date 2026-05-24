@@ -18,7 +18,12 @@ export default async function DashboardPage({
   } catch {
     notFound();
   }
-  const relatorio = await fetchRelatorio(slug);
+  let relatorio = null;
+  try {
+    relatorio = await fetchRelatorio(slug);
+  } catch {
+    relatorio = null;
+  }
 
   const oc = dimensoes.dimensoes.ocorrencias?.dados as Record<string, unknown> | undefined;
   const din = dimensoes.dimensoes.dinamica_criminal?.dados as Record<string, unknown> | undefined;

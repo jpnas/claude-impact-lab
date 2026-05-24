@@ -128,6 +128,15 @@ def main():
     except Exception as e:
         log.error(f"Falha ao conectar ao Supabase: {e}")
         return
+    # Verify area names match Supabase
+    log.info("Verificando correspondência de áreas com Supabase...")
+    for nome in areas.keys():
+        aid = get_area_id(sb, nome)
+        if aid:
+            log.info(f"  ✓ {nome[:50]}")
+        else:
+            log.warning(f"  ✗ NÃO ENCONTRADO: {nome}")
+
     for nome, polygon in areas.items():
         try:
             process_area(sb, nome, polygon)

@@ -45,16 +45,16 @@ async def stream_relatorio(slug: str):
         yield f"data: {json.dumps({'error': 'Área não encontrada'})}\n\n"
         return
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     system = _build_system_prompt(dimensoes)
 
-    with client.messages.stream(
+    async with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=4096,
         system=system,
         messages=[{"role": "user", "content": RELATORIO_PROMPT}],
     ) as stream:
-        for text in stream.text_stream:
+        async for text in stream.text_stream:
             yield f"data: {json.dumps({'text': text})}\n\n"
     yield "data: [DONE]\n\n"
 
@@ -73,23 +73,25 @@ async def stream_chat(slug: str, relatorio_id: str, user_message: str):
     history = [{"role": m["role"], "content": m["conteudo"]} for m in msgs_res.data]
     history.append({"role": "user", "content": user_message})
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    # Persist user message BEFORE streaming starts
+    db.table("mensagens_relatorio").insert(
+        {"relatorio_id": relatorio_id, "role": "user", "conteudo": user_message}
+    ).execute()
+
+    client = anthropic.AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
     system = _build_system_prompt(dimensoes) if dimensoes else "Analista CompStat Rio."
 
     full_response = ""
-    with client.messages.stream(
+    async with client.messages.stream(
         model="claude-sonnet-4-6",
         max_tokens=2048,
         system=system,
         messages=history,
     ) as stream:
-        for text in stream.text_stream:
+        async for text in stream.text_stream:
             full_response += text
             yield f"data: {json.dumps({'text': text})}\n\n"
 
-    db.table("mensagens_relatorio").insert(
-        {"relatorio_id": relatorio_id, "role": "user", "conteudo": user_message}
-    ).execute()
     db.table("mensagens_relatorio").insert(
         {"relatorio_id": relatorio_id, "role": "assistant", "conteudo": full_response}
     ).execute()
