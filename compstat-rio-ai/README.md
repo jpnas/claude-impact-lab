@@ -24,13 +24,23 @@ O CompStat Rio AI entrega uma sala de situação conversacional com:
 - Next.js App Router
 - TypeScript sem `any`
 - TailwindCSS
-- API routes do Next.js
+- FastAPI como backend principal
+- API routes do Next.js como proxy/fallback local
 - PWA com `manifest.json`
 - Vitest + Testing Library
 - Dados mockados em JSON local
 - Claude API opcional via `ANTHROPIC_API_KEY`
 
-## Como Rodar
+## Como Rodar Com FastAPI
+
+```bash
+cd ../compstat-rio-ai-api
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+Em outro terminal:
 
 ```bash
 cd compstat-rio-ai
@@ -38,7 +48,9 @@ pnpm install
 pnpm dev
 ```
 
-Acesse `http://localhost:3000`.
+Acesse `http://localhost:3000` ou a porta indicada pelo Next. Se a porta 3000 estiver ocupada, use `http://localhost:3001`.
+
+Para testar em outro dispositivo da rede, use o IP mostrado pelo Next e mantenha o FastAPI rodando na porta `8000`.
 
 Também existem comandos equivalentes:
 
@@ -47,12 +59,20 @@ pnpm test
 pnpm build
 ```
 
+Backend:
+
+```bash
+cd ../compstat-rio-ai-api
+.venv/bin/pytest
+```
+
 ## Variáveis de Ambiente
 
 Crie `.env.local` somente se quiser usar Claude real:
 
 ```bash
 ANTHROPIC_API_KEY=sua_chave_aqui
+FASTAPI_URL=http://localhost:8000
 ```
 
 Sem essa variável, o chat responde com mock inteligente seguindo sempre:
@@ -81,6 +101,16 @@ O que está coberto:
 - Renderização dos cards, mapa fake e tabela de ações.
 
 ## Endpoints
+
+Backend FastAPI:
+
+```bash
+GET http://localhost:8000/health
+GET http://localhost:8000/area
+GET http://localhost:8000/summary
+GET http://localhost:8000/action-plan
+POST http://localhost:8000/chat
+```
 
 Resumo executivo:
 
@@ -112,6 +142,8 @@ Content-Type: application/json
   "message": "Onde a FM deve atuar hoje à noite?"
 }
 ```
+
+As rotas `/api/*` do Next chamam o FastAPI quando ele está disponível. Se o backend estiver fora do ar, usam o fallback local para preservar a demo.
 
 Perguntas demonstráveis:
 

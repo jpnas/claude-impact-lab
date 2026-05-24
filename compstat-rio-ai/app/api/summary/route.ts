@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { buildExecutiveSummary } from "@/lib/summary";
+import { getSummaryFromBackend } from "@/lib/fastApiClient";
 
-export function GET(): NextResponse {
-  return NextResponse.json(buildExecutiveSummary());
+export async function GET(): Promise<NextResponse> {
+  return NextResponse.json(await getSummaryFromBackend());
 }

@@ -4,12 +4,18 @@ import { AIChat } from "@/components/AIChat";
 import { ActionPlanTable } from "@/components/ActionPlanTable";
 import { DashboardCards } from "@/components/DashboardCards";
 import { RiskMap } from "@/components/RiskMap";
-import { buildActionPlan } from "@/lib/actionPlan";
-import { getEnrichedAreaData } from "@/lib/mockData";
+import {
+  getActionPlanFromBackend,
+  getAreaFromBackend
+} from "@/lib/fastApiClient";
 
-export default function Home(): React.ReactElement {
-  const areaData = getEnrichedAreaData();
-  const actionPlan = buildActionPlan();
+export const dynamic = "force-dynamic";
+
+export default async function Home(): Promise<React.ReactElement> {
+  const [areaData, actionPlan] = await Promise.all([
+    getAreaFromBackend(),
+    getActionPlanFromBackend()
+  ]);
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,rgba(34,211,238,0.16),transparent_32%),radial-gradient(circle_at_top_right,rgba(139,92,246,0.14),transparent_28%),#050816]">

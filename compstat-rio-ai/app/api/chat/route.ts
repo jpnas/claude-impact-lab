@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { buildChatResponse, ChatRequestBody } from "@/lib/chat";
+import { ChatRequestBody } from "@/lib/chat";
+import { getChatFromBackend } from "@/lib/fastApiClient";
 
 export async function POST(request: NextRequest): Promise<NextResponse> {
   const body = (await request.json()) as Partial<ChatRequestBody>;
@@ -12,7 +13,7 @@ export async function POST(request: NextRequest): Promise<NextResponse> {
     );
   }
 
-  const answer = await buildChatResponse(message);
+  const answer = await getChatFromBackend(message);
 
   return NextResponse.json({ answer });
 }
